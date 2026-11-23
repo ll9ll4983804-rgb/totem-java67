@@ -1,0 +1,47 @@
+name: build-jar
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # Start from Fabric's official example mod, so the Gradle wrapper and Loom version are the ones
+      # Fabric maintains; then point it at Minecraft 26.2 and drop in our own source.
+      - name: Get the official Fabric template
+        run: |
+          git clone --depth 1 https://github.com/FabricMC/fabric-example-mod.git "$RUNNER_TEMP/tpl"
+          rm -rf "$RUNNER_TEMP/tpl/.git" "$RUNNER_TEMP/tpl/src"
+          cp -r src "$RUNNER_TEMP/tpl/src"
+          cd "$RUNNER_TEMP/tpl"
+          echo "--- gradle.properties before ---"
+          cat gradle.properties
+          sed -i 's/^minecraft_version=.*/minecraft_version=26.2/' gradle.properties
+          sed -i 's/^loader_version=.*/loader_version=0.20.1/' gradle.properties
+          sed -i 's/^fabric_version=.*/fabric_version=0.161.0+26.2/' gradle.properties
+          sed -i 's/^mod_version=.*/mod_version=1.0.0/' gradle.properties
+          sed -i 's/^archives_base_name=.*/archives_base_name=totem-helper/' gradle.properties
+          echo "--- gradle.properties after ---"
+          cat gradle.properties
+
+      - name: Build the jar
+        working-directory: ${{ runner.temp }}/tpl
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon --stacktrace
+          ls -la build/libs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: totem-helper-jar
+          path: |
+            ${{ runner.temp }}/tpl/build/libs/*.jar
+            !${{ runner.temp }}/tpl/build/libs/*-sources.jar
+            
